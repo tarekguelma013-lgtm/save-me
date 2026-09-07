@@ -169,7 +169,40 @@ async function loadDashboard(){
     el.innerHTML = '<div class="card"><div class="empty">تعذر الاتصال بالسيرفر.</div></div>';
   }
 }
+document.getElementById('btnSaveDevice').addEventListener('click', async ()=>{
+  const deviceId = document.getElementById('deviceIdInput').value.trim();
+  const msgEl = document.getElementById('msgDevice');
 
+  if(!deviceId){
+    msgEl.textContent = 'أدخل معرف الجهاز أولاً.';
+    msgEl.style.display = 'block';
+    msgEl.style.color = '#ff8080';
+    return;
+  }
+
+  try{
+    const res = await fetch(fnUrl('bright-endpoint'), {
+      method:'POST', headers: headers(),
+      body: JSON.stringify({ user_id: userId, device_identifier: deviceId })
+    });
+    const data = await res.json();
+
+    if(data.success){
+      msgEl.textContent = 'تم حفظ معرف الجهاز بنجاح.';
+      msgEl.style.color = '#56d364';
+    } else {
+      msgEl.textContent = data.error || 'تعذر الحفظ.';
+      msgEl.style.color = '#ff8080';
+    }
+    msgEl.style.display = 'block';
+  }catch(e){
+    msgEl.textContent = 'تعذر الاتصال بالسيرفر.';
+    msgEl.style.display = 'block';
+    msgEl.style.color = '#ff8080';
+  }
+});
+
+loadDashboard();
 loadDashboard();
 </script>
 
