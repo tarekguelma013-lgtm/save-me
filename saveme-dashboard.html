@@ -94,10 +94,9 @@ const SUPABASE_URL = "https://bglukxiblolxsfildnol.supabase.co";
 const ANON_KEY = "sb_publishable_YgDOmnqFeknhUQxGQTmwDA_neIoiVnb";
 const DASHBOARD_FN = "bright-handler";
 
-const params = new URLSearchParams(window.location.search);
-const userId = params.get('uid');
+const sessionToken = sessionStorage.getItem('saveme_session_token');
 
-if(!userId){
+if(!sessionToken){
   window.location.href = "saveme-portal.html";
 }
 
@@ -128,10 +127,14 @@ async function loadDashboard(){
   try{
     const res = await fetch(fnUrl(DASHBOARD_FN), {
       method:'POST', headers: headers(),
-      body: JSON.stringify({ user_id: userId })
+      body: JSON.stringify({ session_token: sessionToken })
     });
     const data = await res.json();
-
+if(res.status === 401){
+      sessionStorage.removeItem('saveme_session_token');
+      window.location.href = "saveme-portal.html";
+      return;
+    }
     if(!data.success || !data.tracked_persons || data.tracked_persons.length === 0){
       el.innerHTML = '<div class="card"><div class="empty">لا يوجد أشخاص متابَعين حاليًا.</div></div>';
       return;
@@ -183,7 +186,7 @@ document.getElementById('btnSaveDevice').addEventListener('click', async ()=>{
   try{
     const res = await fetch(fnUrl('bright-endpoint'), {
       method:'POST', headers: headers(),
-      body: JSON.stringify({ user_id: userId, device_identifier: deviceId })
+      body: JSON.stringify({ session_token: sessionToken, device_identifier: deviceId })
     });
     const data = await res.json();
 
@@ -202,7 +205,6 @@ document.getElementById('btnSaveDevice').addEventListener('click', async ()=>{
   }
 });
 
-loadDashboard();
 loadDashboard();
 </script>
 
