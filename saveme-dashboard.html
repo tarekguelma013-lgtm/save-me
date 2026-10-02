@@ -84,12 +84,6 @@
 <div id="dashboardContent">
   <div class="loading">جاري التحميل...</div>
 </div>
- <div class="card" style="max-width: 480px; margin: 0 auto;">
-  <div style="font-size: 15px; margin-bottom: 10px; color: #8b949e;">ربط جهازك (تجريبي)</div>
-  <input type="text" id="deviceIdInput" placeholder="مثال: PHONE-A1" style="width:100%; padding:10px; border-radius:8px; border:1px solid #30363d; background:#0d1117; color:#e6edf3; margin-bottom:10px;">
-  <button id="btnSaveDevice" style="width:100%; padding:11px; border-radius:8px; border:none; background:#e63946; color:white; font-weight:bold; cursor:pointer;">حفظ معرف الجهاز</button>
-  <div class="msg" id="msgDevice" style="margin-top:10px; text-align:center; font-size:14px; display:none;"></div>
-</div> 
 <div class="card" style="max-width:480px; margin:16px auto 0;">
   <div style="font-size:15px; margin-bottom:6px; color:#8b949e;">رموز استرجاع الحساب</div>
   <div style="font-size:13px; color:#8b949e; margin-bottom:12px; line-height:1.6;">تحتاجها إذا نسيت كلمة السر. كل رمز يخدم مرة واحدة، وتوليد رموز جديدة يلغي القديمة.</div>
@@ -169,10 +163,13 @@ if(res.status === 401){
         </div>
 
         <div class="status-row">
-          <span class="status-label">آخر تحديث</span>
+         <span class="status-label">آخر قراءة للنبض</span> 
           <span class="status-value">${formatDate(hr ? hr.recorded_at : null)}</span>
         </div>
-
+<div class="status-row">
+          <span class="status-label">آخر موقع</span>
+          <span class="status-value">${formatDate(loc ? loc.recorded_at : null)}</span>
+        </div>
         ${loc ? `<a class="map-link" target="_blank" href="https://www.google.com/maps?q=${loc.latitude},${loc.longitude}">عرض الموقع على الخريطة</a>` : '<div class="empty">لا يوجد موقع مسجل</div>'}
         <div class="pair-box"></div>
       `;
@@ -184,38 +181,6 @@ if(res.status === 401){
     el.innerHTML = '<div class="card"><div class="empty">تعذر الاتصال بالسيرفر.</div></div>';
   }
 }
-document.getElementById('btnSaveDevice').addEventListener('click', async ()=>{
-  const deviceId = document.getElementById('deviceIdInput').value.trim();
-  const msgEl = document.getElementById('msgDevice');
-
-  if(!deviceId){
-    msgEl.textContent = 'أدخل معرف الجهاز أولاً.';
-    msgEl.style.display = 'block';
-    msgEl.style.color = '#ff8080';
-    return;
-  }
-
-  try{
-    const res = await fetch(fnUrl('bright-endpoint'), {
-      method:'POST', headers: headers(),
-      body: JSON.stringify({ session_token: sessionToken, device_identifier: deviceId })
-    });
-    const data = await res.json();
-
-    if(data.success){
-      msgEl.textContent = 'تم حفظ معرف الجهاز بنجاح.';
-      msgEl.style.color = '#56d364';
-    } else {
-      msgEl.textContent = data.error || 'تعذر الحفظ.';
-      msgEl.style.color = '#ff8080';
-    }
-    msgEl.style.display = 'block';
-  }catch(e){
-    msgEl.textContent = 'تعذر الاتصال بالسيرفر.';
-    msgEl.style.display = 'block';
-    msgEl.style.color = '#ff8080';
-  }
-});
 const PAIR_CREATE_FN = "swift-service";
 const PAIR_REVOKE_FN = "swift-worker";
 
@@ -240,6 +205,7 @@ function renderPairBox(box, person){
   const p = person.pairing;
   box.style.cssText = 'border-top:1px solid #21262d;margin-top:12px;padding-top:12px;font-size:14px;';
   box.innerHTML = '';
+ delete box.dataset.code;
   const info = document.createElement('div');
   info.style.color = (p && p.status === 'accepted') ? '#56d364' : '#8b949e';
   info.textContent = !pairIsOpen(p) ? 'لا يوجد جهاز مرتبط'
@@ -268,6 +234,7 @@ function renderPairBox(box, person){
           info.textContent = 'أدخل هذا الكود في جهاز المتتبَع خلال 15 دقيقة';
           msg.style.cssText = 'margin-top:10px;padding:12px;border:1px dashed #e63946;border-radius:8px;text-align:center;font-size:22px;letter-spacing:3px;direction:ltr;user-select:all;';
           msg.textContent = d.code;
+         box.dataset.code = '1';
           btn.textContent = 'إلغاء الربط';
         } else {
           msg.style.color = '#ff8080';
@@ -281,7 +248,11 @@ function renderPairBox(box, person){
   });
 }
 loadDashboard();
-const RECOVERY_GEN_FN = "bright-service";
+setInterval(()=>{
+  if(document.hidden) return;
+  if(document.querySelector('.pair-box[data-code="1"]')) return;
+  loadDashboard();
+}, 20000);
 
 function recMsg(text, color){
   const el = document.getElementById('msgRec');
