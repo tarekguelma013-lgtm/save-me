@@ -95,14 +95,14 @@ function clearLink(){
 
 function stopTracking(){
   if(watchId !== null){
-    navigator.geolocation.clearWatch(watchId);
+   clearInterval(watchId); 
     watchId = null;
   }
 }
 
 async function sendPing(pos){
   const now = Date.now();
-  if(now - lastSent < 30000) return;
+  if(now - lastSent < 25000) return;
   lastSent = now;
   try{
     const res = await fetch(fnUrl(PING_FN), {
@@ -129,21 +129,26 @@ async function sendPing(pos){
   }
 }
 
-function startTracking(){
-  if(watchId !== null) return;
-  if(!navigator.geolocation){
-    setMsg('locStatus', 'هذا الجهاز لا يدعم تحديد الموقع.', 'err');
-    return;
-  }
-  watchId = navigator.geolocation.watchPosition(
+function readAndSend(){
+  navigator.geolocation.getCurrentPosition(
     sendPing,
     (err)=>{
       setMsg('locStatus', err.code === 1
         ? 'اسمح للمتصفح بالوصول إلى الموقع.'
         : 'تعذر تحديد الموقع.', 'err');
     },
-    { enableHighAccuracy: true, maximumAge: 10000, timeout: 30000 }
+    { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }
   );
+}
+
+function startTracking(){
+  if(watchId !== null) return;
+  if(!navigator.geolocation){
+    setMsg('locStatus', 'هذا الجهاز لا يدعم تحديد الموقع.', 'err');
+    return;
+  }
+  readAndSend();
+  watchId = setInterval(readAndSend, 30000);
 }
 
 function showView(){
