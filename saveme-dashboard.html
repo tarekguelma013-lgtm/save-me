@@ -90,6 +90,15 @@
   <button id="btnSaveDevice" style="width:100%; padding:11px; border-radius:8px; border:none; background:#e63946; color:white; font-weight:bold; cursor:pointer;">حفظ معرف الجهاز</button>
   <div class="msg" id="msgDevice" style="margin-top:10px; text-align:center; font-size:14px; display:none;"></div>
 </div> 
+<div class="card" style="max-width:480px; margin:16px auto 0;">
+  <div style="font-size:15px; margin-bottom:6px; color:#8b949e;">رموز استرجاع الحساب</div>
+  <div style="font-size:13px; color:#8b949e; margin-bottom:12px; line-height:1.6;">تحتاجها إذا نسيت كلمة السر. كل رمز يخدم مرة واحدة، وتوليد رموز جديدة يلغي القديمة.</div>
+  <input type="password" id="recPw" placeholder="كلمة السر الحالية" autocomplete="current-password" style="width:100%; padding:10px; border-radius:8px; border:1px solid #30363d; background:#0d1117; color:#e6edf3; margin-bottom:10px; direction:ltr;">
+  <button id="btnRecGen" style="width:100%; padding:11px; border-radius:8px; border:none; background:#e63946; color:white; font-weight:bold; cursor:pointer;">توليد رموز جديدة</button>
+  <pre id="recCodes" style="display:none; margin-top:12px; padding:12px; border:1px dashed #e63946; border-radius:8px; text-align:center; font-size:16px; letter-spacing:2px; line-height:1.9; direction:ltr; user-select:all;"></pre>
+  <button id="btnRecCopy" style="display:none; width:100%; padding:11px; border-radius:8px; border:1px solid #30363d; background:none; color:#e6edf3; cursor:pointer; margin-top:10px;">نسخ الرموز</button>
+  <div id="msgRec" style="margin-top:10px; text-align:center; font-size:14px;"></div>
+</div> 
 <script>
 const SUPABASE_URL = "https://bglukxiblolxsfildnol.supabase.co";
 const ANON_KEY = "sb_publishable_YgDOmnqFeknhUQxGQTmwDA_neIoiVnb";
@@ -272,6 +281,47 @@ function renderPairBox(box, person){
   });
 }
 loadDashboard();
+const RECOVERY_GEN_FN = "bright-service";
+
+function recMsg(text, color){
+  const el = document.getElementById('msgRec');
+  el.textContent = text;
+  el.style.color = color || '#8b949e';
+}
+
+document.getElementById('btnRecGen').addEventListener('click', async ()=>{
+  const pw = document.getElementById('recPw').value;
+  if(!pw){ recMsg('اكتب كلمة السر الحالية.', '#ff8080'); return; }
+  if(!confirm('الرموز القديمة غير المستعملة ستُلغى. تكمل؟')) return;
+  const btn = document.getElementById('btnRecGen');
+  btn.disabled = true;
+  try{
+    const d = await pairCall(RECOVERY_GEN_FN, { current_password: pw });
+    if(d.success){
+      const box = document.getElementById('recCodes');
+      box.textContent = d.codes.join('\n');
+      box.style.display = 'block';
+      document.getElementById('btnRecCopy').style.display = 'block';
+      document.getElementById('recPw').value = '';
+      recMsg('احفظها الآن في مكان آمن، ما تظهر مرة أخرى.', '#56d364');
+    } else {
+      recMsg(d.error || 'تعذر التوليد.', '#ff8080');
+    }
+  }catch(e){
+    recMsg('تعذر الاتصال بالسيرفر.', '#ff8080');
+  }finally{
+    btn.disabled = false;
+  }
+});
+
+document.getElementById('btnRecCopy').addEventListener('click', async ()=>{
+  try{
+    await navigator.clipboard.writeText(document.getElementById('recCodes').textContent);
+    recMsg('تم النسخ.', '#56d364');
+  }catch(e){
+    recMsg('تعذر النسخ، حددها يدويًا.', '#ff8080');
+  }
+}); 
 </script>
 
 </body>
