@@ -56,8 +56,9 @@
 
 <div class="card" id="viewLinked" style="display:none;">
   <h2>الجهاز مرتبط</h2>
-  <div class="sub">موقعك ونبضك يظهران للشخص المسؤول عنك. تقدر تلغي الربط في أي وقت.</div>
+  <div class="sub">موقعك يظهر للشخص المسؤول عنك طالما هذه الصفحة مفتوحة. تقدر تلغي الربط في أي وقت.</div>
   <div style="text-align:center;"><span class="badge">مرتبط</span></div>
+  <div class="msg" id="locStatus">جاري تحديد الموقع...</div>
   <button class="btn secondary" id="btnRevoke">إلغاء الربط</button>
   <div class="msg" id="msgLinked"></div>
 </div>
@@ -67,6 +68,7 @@ const SUPABASE_URL = "https://bglukxiblolxsfildnol.supabase.co";
 const ANON_KEY = "sb_publishable_YgDOmnqFeknhUQxGQTmwDA_neIoiVnb";
 const ACCEPT_FN = "clever-endpoint";
 const REVOKE_FN = "swift-worker";
+const PING_FN = "ضع_هنا_الـslug_الجديد";
 
 function fnUrl(name){ return `${SUPABASE_URL}/functions/v1/${name}`; }
 function headers(){
@@ -83,11 +85,73 @@ function setMsg(id, text, type){
   el.className = 'msg ' + (type || '');
 }
 
+let watchId = null;
+let lastSent = 0;
+
+function clearLink(){
+  localStorage.removeItem('saveme_pairing_id');
+  localStorage.removeItem('saveme_device_secret');
+}
+
+function stopTracking(){
+  if(watchId !== null){
+    navigator.geolocation.clearWatch(watchId);
+    watchId = null;
+  }
+}
+
+async function sendPing(pos){
+  const now = Date.now();
+  if(now - lastSent < 30000) return;
+  lastSent = now;
+  try{
+    const res = await fetch(fnUrl(PING_FN), {
+      method:'POST', headers: headers(),
+      body: JSON.stringify({
+        pairing_id: localStorage.getItem('saveme_pairing_id'),
+        device_secret: localStorage.getItem('saveme_device_secret'),
+        latitude: pos.coords.latitude,
+        longitude: pos.coords.longitude
+      })
+    });
+    if(res.status === 401){
+      clearLink(); stopTracking(); showView();
+      return;
+    }
+    const data = await res.json();
+    if(data.success){
+      setMsg('locStatus', 'آخر إرسال للموقع: ' + new Date().toLocaleTimeString('ar'), 'ok');
+    } else {
+      setMsg('locStatus', data.error || 'تعذر إرسال الموقع.', 'err');
+    }
+  }catch(e){
+    setMsg('locStatus', 'تعذر الاتصال بالسيرفر.', 'err');
+  }
+}
+
+function startTracking(){
+  if(watchId !== null) return;
+  if(!navigator.geolocation){
+    setMsg('locStatus', 'هذا الجهاز لا يدعم تحديد الموقع.', 'err');
+    return;
+  }
+  watchId = navigator.geolocation.watchPosition(
+    sendPing,
+    (err)=>{
+      setMsg('locStatus', err.code === 1
+        ? 'اسمح للمتصفح بالوصول إلى الموقع.'
+        : 'تعذر تحديد الموقع.', 'err');
+    },
+    { enableHighAccuracy: true, maximumAge: 10000, timeout: 30000 }
+  );
+}
+
 function showView(){
   const linked = !!(localStorage.getItem('saveme_pairing_id') &&
                     localStorage.getItem('saveme_device_secret'));
   document.getElementById('viewCode').style.display = linked ? 'none' : '';
   document.getElementById('viewLinked').style.display = linked ? '' : 'none';
+  if(linked) startTracking(); else stopTracking();
 }
 
 document.getElementById('codeInput').addEventListener('input', (e)=>{
@@ -115,6 +179,7 @@ document.getElementById('btnAccept').addEventListener('click', async ()=>{
       localStorage.setItem('saveme_device_secret', data.device_secret);
       document.getElementById('codeInput').value = '';
       setMsg('msgCode', '');
+      lastSent = 0;
       showView();
     } else {
       setMsg('msgCode', data.error || 'تعذر الربط.', 'err');
@@ -140,8 +205,7 @@ document.getElementById('btnRevoke').addEventListener('click', async ()=>{
     });
     const data = await res.json();
     if(data.success || res.status === 400 || res.status === 404){
-      localStorage.removeItem('saveme_pairing_id');
-      localStorage.removeItem('saveme_device_secret');
+      clearLink();
       setMsg('msgLinked', '');
       showView();
     } else {
