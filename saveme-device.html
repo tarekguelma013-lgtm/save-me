@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SAVE ME - ربط الجهاز</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+    background: #000; color: #e6edf3;
+    min-height: 100vh; padding: 20px;
+  }
+  .header { text-align: center; margin-bottom: 24px; }
+  .card {
+    background: #111; border: 1px solid #30363d; border-radius: 14px;
+    padding: 20px; max-width: 420px; margin: 0 auto 16px;
+  }
+  h2 { font-size: 18px; margin-bottom: 8px; }
+  .sub { color: #8b949e; font-size: 14px; margin-bottom: 16px; line-height: 1.6; }
+  input {
+    width: 100%; padding: 14px; border-radius: 8px; border: 1px solid #30363d;
+    background: #0d1117; color: #e6edf3; font-size: 22px; letter-spacing: 3px;
+    text-align: center; direction: ltr; text-transform: uppercase;
+  }
+  input:focus { outline: none; border-color: #e63946; }
+  .btn {
+    width: 100%; padding: 13px; border-radius: 8px; border: none;
+    background: #e63946; color: #fff; font-size: 16px; font-weight: bold;
+    cursor: pointer; margin-top: 12px;
+  }
+  .btn.secondary { background: none; border: 1px solid #e63946; color: #ff8080; }
+  .btn:disabled { opacity: 0.6; }
+  .msg { margin-top: 14px; font-size: 14px; text-align: center; min-height: 20px; }
+  .msg.err { color: #ff8080; }
+  .msg.ok { color: #56d364; }
+  .badge {
+    display: inline-block; padding: 6px 14px; border-radius: 20px;
+    background: rgba(46,160,67,0.15); color: #56d364; font-weight: bold;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <img src="saveme-logo.png" alt="SAVE ME" style="height:70px;width:auto;">
+</div>
+
+<div class="card" id="viewCode">
+  <h2>ربط هذا الجهاز</h2>
+  <div class="sub">اكتب الكود الذي ظهر عند الشخص المسؤول عنك في لوحة المتابعة. الكود صالح 15 دقيقة فقط.</div>
+  <input type="text" id="codeInput" maxlength="9" placeholder="XXXX-XXXX" autocomplete="off">
+  <button class="btn" id="btnAccept">قبول الربط</button>
+  <div class="msg" id="msgCode"></div>
+</div>
+
+<div class="card" id="viewLinked" style="display:none;">
+  <h2>الجهاز مرتبط</h2>
+  <div class="sub">موقعك ونبضك يظهران للشخص المسؤول عنك. تقدر تلغي الربط في أي وقت.</div>
+  <div style="text-align:center;"><span class="badge">مرتبط</span></div>
+  <button class="btn secondary" id="btnRevoke">إلغاء الربط</button>
+  <div class="msg" id="msgLinked"></div>
+</div>
+
+<script>
+const SUPABASE_URL = "https://bglukxiblolxsfildnol.supabase.co";
+const ANON_KEY = "sb_publishable_YgDOmnqFeknhUQxGQTmwDA_neIoiVnb";
+const ACCEPT_FN = "clever-endpoint";
+const REVOKE_FN = "swift-worker";
+
+function fnUrl(name){ return `${SUPABASE_URL}/functions/v1/${name}`; }
+function headers(){
+  return {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${ANON_KEY}`,
+    "apikey": ANON_KEY
+  };
+}
+
+function setMsg(id, text, type){
+  const el = document.getElementById(id);
+  el.textContent = text;
+  el.className = 'msg ' + (type || '');
+}
+
+function showView(){
+  const linked = !!(localStorage.getItem('saveme_pairing_id') &&
+                    localStorage.getItem('saveme_device_secret'));
+  document.getElementById('viewCode').style.display = linked ? 'none' : '';
+  document.getElementById('viewLinked').style.display = linked ? '' : 'none';
+}
+
+document.getElementById('codeInput').addEventListener('input', (e)=>{
+  let v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+  if(v.length > 4) v = v.slice(0, 4) + '-' + v.slice(4);
+  e.target.value = v;
+});
+
+document.getElementById('btnAccept').addEventListener('click', async ()=>{
+  const code = document.getElementById('codeInput').value.trim();
+  if(code.replace('-', '').length !== 8){
+    setMsg('msgCode', 'اكتب الكود كاملًا (8 خانات).', 'err');
+    return;
+  }
+  const btn = document.getElementById('btnAccept');
+  btn.disabled = true; btn.textContent = 'جاري الربط...';
+  try{
+    const res = await fetch(fnUrl(ACCEPT_FN), {
+      method:'POST', headers: headers(),
+      body: JSON.stringify({ code })
+    });
+    const data = await res.json();
+    if(data.success){
+      localStorage.setItem('saveme_pairing_id', data.pairing_id);
+      localStorage.setItem('saveme_device_secret', data.device_secret);
+      document.getElementById('codeInput').value = '';
+      setMsg('msgCode', '');
+      showView();
+    } else {
+      setMsg('msgCode', data.error || 'تعذر الربط.', 'err');
+    }
+  }catch(e){
+    setMsg('msgCode', 'تعذر الاتصال بالسيرفر.', 'err');
+  }finally{
+    btn.disabled = false; btn.textContent = 'قبول الربط';
+  }
+});
+
+document.getElementById('btnRevoke').addEventListener('click', async ()=>{
+  if(!confirm('إلغاء الربط؟ لن يظهر موقعك بعد الآن.')) return;
+  const btn = document.getElementById('btnRevoke');
+  btn.disabled = true;
+  try{
+    const res = await fetch(fnUrl(REVOKE_FN), {
+      method:'POST', headers: headers(),
+      body: JSON.stringify({
+        pairing_id: localStorage.getItem('saveme_pairing_id'),
+        device_secret: localStorage.getItem('saveme_device_secret')
+      })
+    });
+    const data = await res.json();
+    if(data.success || res.status === 400 || res.status === 404){
+      localStorage.removeItem('saveme_pairing_id');
+      localStorage.removeItem('saveme_device_secret');
+      setMsg('msgLinked', '');
+      showView();
+    } else {
+      setMsg('msgLinked', data.error || 'تعذر الإلغاء.', 'err');
+    }
+  }catch(e){
+    setMsg('msgLinked', 'تعذر الاتصال بالسيرفر.', 'err');
+  }finally{
+    btn.disabled = false;
+  }
+});
+
+showView();
+</script>
+
+</body>
+</html>
