@@ -147,7 +147,8 @@ document.getElementById('btnLogin').addEventListener('click', async ()=>{
 
     if(data.success){
       sessionStorage.setItem('saveme_user_id', data.user_id);
-      window.location.href = "saveme-dashboard.html?uid=" + data.user_id;
+      sessionStorage.setItem('saveme_session_token', data.session_token);
+      window.location.href = "saveme-dashboard.html";
     } else {
       showMsg(data.error || 'بيانات الدخول غير صحيحة.', 'err');
     }
