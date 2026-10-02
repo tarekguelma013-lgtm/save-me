@@ -71,7 +71,7 @@
     color: #8b949e;
     padding: 40px 20px;
   }
- pairing: pairing || null,
+ 
   .loading { text-align: center; padding: 40px; color: #8b949e; }
 </style>
 </head>
@@ -165,8 +165,10 @@ if(res.status === 401){
         </div>
 
         ${loc ? `<a class="map-link" target="_blank" href="https://www.google.com/maps?q=${loc.latitude},${loc.longitude}">عرض الموقع على الخريطة</a>` : '<div class="empty">لا يوجد موقع مسجل</div>'}
+        <div class="pair-box"></div>
       `;
       el.appendChild(card);
+     renderPairBox(card.querySelector('.pair-box'), person);
     });
 
   }catch(e){
@@ -205,7 +207,70 @@ document.getElementById('btnSaveDevice').addEventListener('click', async ()=>{
     msgEl.style.color = '#ff8080';
   }
 });
+const PAIR_CREATE_FN = "swift-service";
+const PAIR_REVOKE_FN = "swift-worker";
 
+async function pairCall(fn, payload){
+  const res = await fetch(fnUrl(fn), {
+    method:'POST', headers: headers(),
+    body: JSON.stringify({ session_token: sessionToken, ...payload })
+  });
+  if(res.status === 401){
+    sessionStorage.removeItem('saveme_session_token');
+    window.location.href = "saveme-portal.html";
+  }
+  return res.json();
+}
+
+function pairIsOpen(p){
+  return !!p && (p.status === 'accepted' ||
+    (p.status === 'pending' && new Date(p.expires_at) > new Date()));
+}
+
+function renderPairBox(box, person){
+  const p = person.pairing;
+  box.style.cssText = 'border-top:1px solid #21262d;margin-top:12px;padding-top:12px;font-size:14px;';
+  box.innerHTML = '';
+  const info = document.createElement('div');
+  info.style.color = (p && p.status === 'accepted') ? '#56d364' : '#8b949e';
+  info.textContent = !pairIsOpen(p) ? 'لا يوجد جهاز مرتبط'
+    : p.status === 'accepted' ? 'جهاز المتتبَع مرتبط'
+    : 'في انتظار إدخال الكود في الجهاز';
+  const btn = document.createElement('button');
+  btn.style.cssText = 'width:100%;padding:11px;border-radius:8px;border:none;background:#e63946;color:white;font-weight:bold;cursor:pointer;margin-top:10px;';
+  btn.textContent = pairIsOpen(p) ? 'إلغاء الربط' : 'إنشاء كود الربط';
+  const msg = document.createElement('div');
+  msg.style.cssText = 'margin-top:8px;text-align:center;';
+  box.append(info, btn, msg);
+
+  btn.addEventListener('click', async ()=>{
+    btn.disabled = true;
+    try{
+      if(pairIsOpen(person.pairing)){
+        if(!confirm('إلغاء الربط؟')) return;
+        const d = await pairCall(PAIR_REVOKE_FN, { tracked_person_id: person.id });
+        if(d.success){ person.pairing = null; renderPairBox(box, person); return; }
+        msg.style.color = '#ff8080';
+        msg.textContent = d.error || 'تعذر الإلغاء.';
+      } else {
+        const d = await pairCall(PAIR_CREATE_FN, { tracked_person_id: person.id });
+        if(d.success){
+          person.pairing = { status:'pending', expires_at: d.expires_at };
+          info.textContent = 'أدخل هذا الكود في جهاز المتتبَع خلال 15 دقيقة';
+          msg.style.cssText = 'margin-top:10px;padding:12px;border:1px dashed #e63946;border-radius:8px;text-align:center;font-size:22px;letter-spacing:3px;direction:ltr;user-select:all;';
+          msg.textContent = d.code;
+          btn.textContent = 'إلغاء الربط';
+        } else {
+          msg.style.color = '#ff8080';
+          msg.textContent = d.error || 'تعذر إنشاء الكود.';
+        }
+      }
+    }catch(e){
+      msg.style.color = '#ff8080';
+      msg.textContent = 'تعذر الاتصال بالسيرفر.';
+    }finally{ btn.disabled = false; }
+  });
+}
 loadDashboard();
 </script>
 
