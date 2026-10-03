@@ -166,7 +166,7 @@ if(res.status === 401){
       card.className = 'card';
       card.innerHTML = `
         <div class="person-name">${esc(person.full_name)}</div>
-        <div class="person-category">${person.category === 'minor' ? 'قاصر' : 'حالة خاصة'} · الجهاز: ${esc(person.device_id || 'غير مرتبط')}</div>
+       <div class="person-category">${person.category === 'minor' ? 'قاصر' : 'حالة خاصة'} · الجهاز: ${person.pairing && person.pairing.status === 'accepted' ? 'مرتبط' : 'غير مرتبط'}</div> 
 
         <div class="status-row">
           <span class="status-label">نبضات القلب</span>
