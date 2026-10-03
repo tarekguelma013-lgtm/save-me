@@ -80,7 +80,9 @@
 <div class="header">
   <img src="saveme-logo.png" alt="SAVE ME" style="height: 70px; width: auto;">
 </div>
-
+<div style="max-width:480px; margin:0 auto 12px; text-align:left;">
+  <button onclick="sessionStorage.removeItem('saveme_session_token'); sessionStorage.removeItem('saveme_user_id'); window.location.href='saveme-portal.html';" style="padding:8px 16px; border-radius:8px; border:1px solid #30363d; background:none; color:#8b949e; font-size:13px; cursor:pointer;">تسجيل الخروج</button>
+</div>
 <div id="dashboardContent">
   <div class="loading">جاري التحميل...</div>
 </div>
