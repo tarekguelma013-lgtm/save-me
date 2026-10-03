@@ -85,6 +85,17 @@
   <div class="loading">جاري التحميل...</div>
 </div>
 <div class="card" style="max-width:480px; margin:16px auto 0;">
+  <div style="font-size:15px; margin-bottom:6px; color:#8b949e;">إضافة شخص للمتابعة</div>
+  <div style="font-size:13px; color:#8b949e; margin-bottom:12px; line-height:1.6;">بعد الإضافة أنشئ كود الربط وأدخله في جهاز الشخص. لا يظهر موقعه إلا بعد قبوله من جهازه.</div>
+  <input type="text" id="personName" maxlength="60" placeholder="الاسم" style="width:100%; padding:10px; border-radius:8px; border:1px solid #30363d; background:#0d1117; color:#e6edf3; margin-bottom:10px;">
+  <select id="personCategory" style="width:100%; padding:10px; border-radius:8px; border:1px solid #30363d; background:#0d1117; color:#e6edf3; margin-bottom:10px;">
+    <option value="minor">قاصر</option>
+    <option value="special">حالة خاصة</option>
+  </select>
+  <button id="btnAddPerson" style="width:100%; padding:11px; border-radius:8px; border:none; background:#e63946; color:white; font-weight:bold; cursor:pointer;">إضافة</button>
+  <div id="msgPerson" style="margin-top:10px; text-align:center; font-size:14px;"></div>
+</div> 
+<div class="card" style="max-width:480px; margin:16px auto 0;">
   <div style="font-size:15px; margin-bottom:6px; color:#8b949e;">رموز استرجاع الحساب</div>
   <div style="font-size:13px; color:#8b949e; margin-bottom:12px; line-height:1.6;">تحتاجها إذا نسيت كلمة السر. كل رمز يخدم مرة واحدة، وتوليد رموز جديدة يلغي القديمة.</div>
   <input type="password" id="recPw" placeholder="كلمة السر الحالية" autocomplete="current-password" style="width:100%; padding:10px; border-radius:8px; border:1px solid #30363d; background:#0d1117; color:#e6edf3; margin-bottom:10px; direction:ltr;">
@@ -125,7 +136,9 @@ function heartStatusLabel(status){
   if(status === 'absent') return 'منعدم';
   return 'غير معروف';
 }
-
+ function esc(s){
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
 async function loadDashboard(){
   const el = document.getElementById('dashboardContent');
   try{
@@ -152,8 +165,8 @@ if(res.status === 401){
       const card = document.createElement('div');
       card.className = 'card';
       card.innerHTML = `
-        <div class="person-name">${person.full_name}</div>
-        <div class="person-category">${person.category === 'minor' ? 'قاصر' : 'حالة خاصة'} · الجهاز: ${person.device_id || 'غير مرتبط'}</div>
+        <div class="person-name">${esc(person.full_name)}</div>
+        <div class="person-category">${person.category === 'minor' ? 'قاصر' : 'حالة خاصة'} · الجهاز: ${esc(person.device_id || 'غير مرتبط')}</div>
 
         <div class="status-row">
           <span class="status-label">نبضات القلب</span>
@@ -253,7 +266,38 @@ setInterval(()=>{
   if(document.querySelector('.pair-box[data-code="1"]')) return;
   loadDashboard();
 }, 20000);
+const RECOVERY_GEN_FN = "bright-service";
+const PERSON_ADD_FN = "bright-task";
 
+document.getElementById('btnAddPerson').addEventListener('click', async ()=>{
+  const name = document.getElementById('personName').value.trim();
+  const category = document.getElementById('personCategory').value;
+  const msgEl = document.getElementById('msgPerson');
+  if(name.length < 2){
+    msgEl.style.color = '#ff8080';
+    msgEl.textContent = 'اكتب الاسم (حرفان على الأقل).';
+    return;
+  }
+  const btn = document.getElementById('btnAddPerson');
+  btn.disabled = true;
+  try{
+    const d = await pairCall(PERSON_ADD_FN, { full_name: name, category });
+    if(d.success){
+      document.getElementById('personName').value = '';
+      msgEl.style.color = '#56d364';
+      msgEl.textContent = 'تمت الإضافة. أنشئ كود الربط من بطاقته.';
+      loadDashboard();
+    } else {
+      msgEl.style.color = '#ff8080';
+      msgEl.textContent = d.error || 'تعذرت الإضافة.';
+    }
+  }catch(e){
+    msgEl.style.color = '#ff8080';
+    msgEl.textContent = 'تعذر الاتصال بالسيرفر.';
+  }finally{
+    btn.disabled = false;
+  }
+});
 function recMsg(text, color){
   const el = document.getElementById('msgRec');
   el.textContent = text;
