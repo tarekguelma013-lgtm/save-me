@@ -327,7 +327,7 @@ function renderPairBox(box, person){
         const d = await pairCall(PAIR_CREATE_FN, { tracked_person_id: person.id });
         if(d.success){
           person.pairing = { status:'pending', expires_at: d.expires_at };
-          info.textContent = 'أدخل هذا الكود في جهاز المتتبَع خلال 15 دقيقة';
+          info.textContent = 'أدخل هذا الكود في جهاز المتتبَع خلال 10 دقيقة';
           msg.style.cssText = 'margin-top:10px;padding:12px;border:1px dashed var(--acc);border-radius:8px;text-align:center;font-size:22px;letter-spacing:3px;direction:ltr;user-select:all;';
           msg.textContent = d.code;
           box.dataset.code = '1';
