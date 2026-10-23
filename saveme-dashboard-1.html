@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SAVE ME - لوحة المتابعة</title>
+<script>
+  document.documentElement.dataset.theme = localStorage.getItem('saveme_theme') || 'dark';
+</script>
+<style>
+  :root {
+    --bg:#000000; --card:#111111; --bd:#30363d; --tx:#e6edf3; --mut:#8b949e;
+    --in:#0d1117; --line:#21262d; --acc:#e63946; --ok:#56d364; --bad:#ff8080;
+    --nav:#0b0b0b;
+  }
+  [data-theme="light"] {
+    --bg:#f4f1ec; --card:#ffffff; --bd:#ddd6cb; --tx:#1c1f24; --mut:#5f6773;
+    --in:#f7f5f0; --line:#e7e1d6; --ok:#1a7f37; --bad:#c62828; --nav:#ffffff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+    background: var(--bg);
+    color: var(--tx);
+    min-height: 100vh;
+    padding: 20px 20px 96px;
+  }
+  .header { text-align: center; margin-bottom: 20px; }
+  .header img { height: 70px; width: auto; }
+  .tab { display: none; }
+  .tab.active { display: block; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--bd);
+    border-radius: 14px;
+    padding: 20px;
+    max-width: 480px;
+    margin: 0 auto 16px;
+  }
+  .card-title { font-size: 15px; margin-bottom: 6px; color: var(--mut); }
+  .card-text { font-size: 13px; color: var(--mut); margin-bottom: 12px; line-height: 1.6; }
+  .person-name { font-size: 20px; font-weight: bold; margin-bottom: 4px; }
+  .person-category { color: var(--mut); font-size: 13px; margin-bottom: 16px; }
+  .status-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 0; border-top: 1px solid var(--line);
+  }
+  .status-label { color: var(--mut); font-size: 14px; }
+  .status-value { font-weight: bold; font-size: 15px; }
+  .badge { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 13px; font-weight: bold; }
+  .badge.normal { background: rgba(46,160,67,0.15); color: var(--ok); }
+  .badge.elevated { background: rgba(230,57,70,0.15); color: var(--bad); }
+  .badge.absent { background: rgba(230,57,70,0.3); color: var(--bad); }
+  .map-link {
+    display: block; text-align: center; background: var(--acc); color: #fff;
+    padding: 12px; border-radius: 8px; text-decoration: none; font-weight: bold; margin-top: 12px;
+  }
+  .empty { text-align: center; color: var(--mut); padding: 40px 20px; }
+  .loading { text-align: center; padding: 40px; color: var(--mut); }
+  .field {
+    width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--bd);
+    background: var(--in); color: var(--tx); margin-bottom: 10px; font-family: inherit; font-size: 14px;
+  }
+  textarea.field { min-height: 110px; resize: vertical; }
+  .btn {
+    width: 100%; padding: 11px; border-radius: 8px; border: none; background: var(--acc);
+    color: #fff; font-weight: bold; cursor: pointer; font-size: 14px;
+  }
+  .btn.ghost { background: none; border: 1px solid var(--bd); color: var(--tx); font-weight: normal; }
+  .btn:disabled { opacity: .6; }
+  .msg { margin-top: 10px; text-align: center; font-size: 14px; }
+  .row-set {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 4px 0 14px; font-size: 15px;
+  }
+  .ticket { border-top: 1px solid var(--line); padding: 14px 0; }
+  .ticket:first-child { border-top: none; }
+  .ticket-top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+  .ticket-subject { font-weight: bold; font-size: 15px; }
+  .ticket-meta { color: var(--mut); font-size: 12px; margin: 4px 0 8px; }
+  .ticket-msg { font-size: 14px; line-height: 1.6; white-space: pre-wrap; }
+  .ticket-reply {
+    margin-top: 10px; padding: 10px; border-radius: 8px; background: var(--in);
+    border-right: 3px solid var(--acc); font-size: 14px; line-height: 1.6; white-space: pre-wrap;
+  }
+  .st { font-size: 12px; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--bd); color: var(--mut); white-space: nowrap; }
+  .st.done { color: var(--ok); border-color: var(--ok); }
+  .nav {
+    position: fixed; bottom: 0; left: 0; right: 0; background: var(--nav);
+    border-top: 1px solid var(--bd); display: flex; justify-content: space-around;
+    padding: 8px 0 12px; z-index: 10;
+  }
+  .nav button {
+    background: none; border: none; color: var(--mut); font-family: inherit; font-size: 12px;
+    display: flex; flex-direction: column; align-items: center; gap: 2px; cursor: pointer; padding: 4px 18px;
+  }
+  .nav button .ic { font-size: 22px; }
+  .nav button.active { color: var(--acc); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <img src="saveme-logo.png" alt="SAVE ME">
+</div>
+
+<!-- ===== تبويب الرئيسية ===== -->
+<div id="tab-home" class="tab active">
+  <div id="dashboardContent">
+    <div class="loading">جاري التحميل...</div>
+  </div>
+  <div class="card">
+    <div class="card-title">إضافة شخص للمتابعة</div>
+    <div class="card-text">بعد الإضافة أنشئ كود الربط وأدخله في جهاز الشخص. لا يظهر موقعه إلا بعد قبوله من جهازه.</div>
+    <input type="text" id="personName" maxlength="60" placeholder="الاسم" class="field">
+    <select id="personCategory" class="field">
+      <option value="minor">قاصر</option>
+      <option value="special">حالة خاصة</option>
+    </select>
+    <button id="btnAddPerson" class="btn">إضافة</button>
+    <div id="msgPerson" class="msg"></div>
+  </div>
+</div>
+
+<!-- ===== تبويب الدعم الفني ===== -->
+<div id="tab-support" class="tab">
+  <div id="adminSupport"></div>
+  <div class="card">
+    <div class="card-title">الدعم الفني</div>
+    <div class="card-text">ابعث مشكلتك، يصلك الرد هنا داخل النظام.</div>
+    <input type="text" id="supSubject" maxlength="80" placeholder="عنوان مختصر للمشكلة" class="field">
+    <textarea id="supMessage" maxlength="2000" placeholder="اشرح مشكلتك بالتفصيل" class="field"></textarea>
+    <button id="btnSupSend" class="btn">إرسال</button>
+    <div id="msgSup" class="msg"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">تذاكرك السابقة</div>
+    <div id="supList"><div class="empty" style="padding:20px;">ما عندكش تذاكر سابقة.</div></div>
+    <button id="btnSupRefresh" class="btn ghost" style="margin-top:10px;">تحديث</button>
+  </div>
+</div>
+
+<!-- ===== تبويب الإعدادات ===== -->
+<div id="tab-settings" class="tab">
+  <div class="card">
+    <div class="card-title">المظهر</div>
+    <div class="row-set">
+      <span id="themeLabel">ليلي</span>
+      <button id="btnTheme" class="btn ghost" style="width:auto; padding:8px 18px;">تبديل</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">رموز استرجاع الحساب</div>
+    <div class="card-text">تحتاجها إذا نسيت كلمة السر. كل رمز يخدم مرة واحدة، وتوليد رموز جديدة يلغي القديمة.</div>
+    <input type="password" id="recPw" placeholder="كلمة السر الحالية" autocomplete="current-password" class="field" style="direction:ltr;">
+    <button id="btnRecGen" class="btn">توليد رموز جديدة</button>
+    <pre id="recCodes" style="display:none; margin-top:12px; padding:12px; border:1px dashed var(--acc); border-radius:8px; text-align:center; font-size:16px; letter-spacing:2px; line-height:1.9; direction:ltr; user-select:all;"></pre>
+    <button id="btnRecCopy" class="btn ghost" style="display:none; margin-top:10px;">نسخ الرموز</button>
+    <div id="msgRec" class="msg"></div>
+  </div>
+  <div class="card">
+    <button id="btnLogout" class="btn ghost">تسجيل الخروج</button>
+  </div>
+</div>
+
+<div class="nav">
+  <button data-tab="home" class="active"><span class="ic">🏠</span>الرئيسية</button>
+  <button data-tab="support"><span class="ic">💬</span>الدعم</button>
+  <button data-tab="settings"><span class="ic">⚙️</span>الإعدادات</button>
+</div>
+
+<script>
+const SUPABASE_URL = "https://bglukxiblolxsfildnol.supabase.co";
+const ANON_KEY = "sb_publishable_YgDOmnqFeknhUQxGQTmwDA_neIoiVnb";
+const DASHBOARD_FN = "bright-handler";
+const PAIR_CREATE_FN = "swift-service";
+const PAIR_REVOKE_FN = "swift-worker";
+const RECOVERY_GEN_FN = "bright-service";
+const PERSON_ADD_FN = "bright-task";
+const SUPPORT_FN = "rapid-worker";
+
+const sessionToken = sessionStorage.getItem('saveme_session_token');
+if(!sessionToken){ window.location.href = "saveme-portal.html"; }
+
+function fnUrl(name){ return `${SUPABASE_URL}/functions/v1/${name}`; }
+function headers(){
+  return { "Content-Type": "application/json", "Authorization": `Bearer ${ANON_KEY}`, "apikey": ANON_KEY };
+}
+function esc(s){
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function formatDate(iso){
+  if(!iso) return "غير متوفر";
+  const d = new Date(iso);
+  return d.toLocaleString('ar', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+}
+function heartStatusLabel(status){
+  if(status === 'normal') return 'طبيعي';
+  if(status === 'elevated') return 'مرتفع';
+  if(status === 'absent') return 'منعدم';
+  return 'غير معروف';
+}
+async function pairCall(fn, payload){
+  const res = await fetch(fnUrl(fn), {
+    method:'POST', headers: headers(),
+    body: JSON.stringify({ session_token: sessionToken, ...payload })
+  });
+  if(res.status === 401){
+    sessionStorage.removeItem('saveme_session_token');
+    window.location.href = "saveme-portal.html";
+  }
+  return res.json();
+}
+
+/* ===== التبويبات ===== */
+function showTab(name){
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.id === 'tab-' + name));
+  document.querySelectorAll('.nav button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  window.scrollTo(0, 0);
+  if(name === 'support'){ loadTickets(); loadAdmin(); }
+}
+document.querySelectorAll('.nav button').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
+
+/* ===== المظهر ===== */
+function applyThemeLabel(){
+  const t = document.documentElement.dataset.theme;
+  document.getElementById('themeLabel').textContent = t === 'light' ? '☀️ نهاري' : '🌙 ليلي';
+}
+document.getElementById('btnTheme').addEventListener('click', () => {
+  const next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+  document.documentElement.dataset.theme = next;
+  localStorage.setItem('saveme_theme', next);
+  applyThemeLabel();
+});
+applyThemeLabel();
+
+document.getElementById('btnLogout').addEventListener('click', () => {
+  sessionStorage.removeItem('saveme_session_token');
+  sessionStorage.removeItem('saveme_user_id');
+  window.location.href = 'saveme-portal.html';
+});
+
+/* ===== الرئيسية: الأشخاص المتابَعون ===== */
+async function loadDashboard(){
+  const el = document.getElementById('dashboardContent');
+  try{
+    const res = await fetch(fnUrl(DASHBOARD_FN), {
+      method:'POST', headers: headers(),
+      body: JSON.stringify({ session_token: sessionToken })
+    });
+    const data = await res.json();
+    if(res.status === 401){
+      sessionStorage.removeItem('saveme_session_token');
+      window.location.href = "saveme-portal.html";
+      return;
+    }
+    if(!data.success || !data.tracked_persons || data.tracked_persons.length === 0){
+      el.innerHTML = '<div class="card"><div class="empty">لا يوجد أشخاص متابَعين حاليًا.</div></div>';
+      return;
+    }
+    el.innerHTML = '';
+    data.tracked_persons.forEach(person=>{
+      const hr = person.last_heart_rate;
+      const loc = person.last_location;
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `
+        <div class="person-name">${esc(person.full_name)}</div>
+        <div class="person-category">${person.category === 'minor' ? 'قاصر' : 'حالة خاصة'} · الجهاز: ${person.pairing && person.pairing.status === 'accepted' ? 'مرتبط' : 'غير مرتبط'}</div>
+        <div class="status-row">
+          <span class="status-label">نبضات القلب</span>
+          <span class="status-value">
+            ${hr ? `${esc(hr.bpm)} bpm <span class="badge ${esc(hr.status)}">${heartStatusLabel(hr.status)}</span>` : 'لا توجد بيانات'}
+          </span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">آخر قراءة للنبض</span>
+          <span class="status-value">${formatDate(hr ? hr.recorded_at : null)}</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">آخر موقع</span>
+          <span class="status-value">${formatDate(loc ? loc.recorded_at : null)}</span>
+        </div>
+        ${loc ? `<a class="map-link" target="_blank" rel="noopener" href="https://www.google.com/maps?q=${encodeURIComponent(loc.latitude)},${encodeURIComponent(loc.longitude)}">عرض الموقع على الخريطة</a>` : '<div class="empty">لا يوجد موقع مسجل</div>'}
+        <div class="pair-box"></div>
+      `;
+      el.appendChild(card);
+      renderPairBox(card.querySelector('.pair-box'), person);
+    });
+  }catch(e){
+    el.innerHTML = '<div class="card"><div class="empty">تعذر الاتصال بالسيرفر.</div></div>';
+  }
+}
+
+function pairIsOpen(p){
+  return !!p && (p.status === 'accepted' ||
+    (p.status === 'pending' && new Date(p.expires_at) > new Date()));
+}
+
+function renderPairBox(box, person){
+  const p = person.pairing;
+  box.style.cssText = 'border-top:1px solid var(--line);margin-top:12px;padding-top:12px;font-size:14px;';
+  box.innerHTML = '';
+  delete box.dataset.code;
+  const info = document.createElement('div');
+  info.style.color = (p && p.status === 'accepted') ? 'var(--ok)' : 'var(--mut)';
+  info.textContent = !pairIsOpen(p) ? 'لا يوجد جهاز مرتبط'
+    : p.status === 'accepted' ? 'جهاز المتتبَع مرتبط'
+    : 'في انتظار إدخال الكود في الجهاز';
+  const btn = document.createElement('button');
+  btn.className = 'btn';
+  btn.style.marginTop = '10px';
+  btn.textContent = pairIsOpen(p) ? 'إلغاء الربط' : 'إنشاء كود الربط';
+  const msg = document.createElement('div');
+  msg.style.cssText = 'margin-top:8px;text-align:center;';
+  box.append(info, btn, msg);
+
+  btn.addEventListener('click', async ()=>{
+    btn.disabled = true;
+    try{
+      if(pairIsOpen(person.pairing)){
+        if(!confirm('إلغاء الربط؟')) return;
+        const d = await pairCall(PAIR_REVOKE_FN, { tracked_person_id: person.id });
+        if(d.success){ person.pairing = null; renderPairBox(box, person); return; }
+        msg.style.color = 'var(--bad)';
+        msg.textContent = d.error || 'تعذر الإلغاء.';
+      } else {
+        const d = await pairCall(PAIR_CREATE_FN, { tracked_person_id: person.id });
+        if(d.success){
+          person.pairing = { status:'pending', expires_at: d.expires_at };
+          info.textContent = 'أدخل هذا الكود في جهاز المتتبَع خلال 15 دقيقة';
+          msg.style.cssText = 'margin-top:10px;padding:12px;border:1px dashed var(--acc);border-radius:8px;text-align:center;font-size:22px;letter-spacing:3px;direction:ltr;user-select:all;';
+          msg.textContent = d.code;
+          box.dataset.code = '1';
+          btn.textContent = 'إلغاء الربط';
+        } else {
+          msg.style.color = 'var(--bad)';
+          msg.textContent = d.error || 'تعذر إنشاء الكود.';
+        }
+      }
+    }catch(e){
+      msg.style.color = 'var(--bad)';
+      msg.textContent = 'تعذر الاتصال بالسيرفر.';
+    }finally{ btn.disabled = false; }
+  });
+}
+
+document.getElementById('btnAddPerson').addEventListener('click', async ()=>{
+  const name = document.getElementById('personName').value.trim();
+  const category = document.getElementById('personCategory').value;
+  const msgEl = document.getElementById('msgPerson');
+  if(name.length < 2){
+    msgEl.style.color = 'var(--bad)';
+    msgEl.textContent = 'اكتب الاسم (حرفان على الأقل).';
+    return;
+  }
+  const btn = document.getElementById('btnAddPerson');
+  btn.disabled = true;
+  try{
+    const d = await pairCall(PERSON_ADD_FN, { full_name: name, category });
+    if(d.success){
+      document.getElementById('personName').value = '';
+      msgEl.style.color = 'var(--ok)';
+      msgEl.textContent = 'تمت الإضافة. أنشئ كود الربط من بطاقته.';
+      loadDashboard();
+    } else {
+      msgEl.style.color = 'var(--bad)';
+      msgEl.textContent = d.error || 'تعذرت الإضافة.';
+    }
+  }catch(e){
+    msgEl.style.color = 'var(--bad)';
+    msgEl.textContent = 'تعذر الاتصال بالسيرفر.';
+  }finally{ btn.disabled = false; }
+});
+
+/* ===== الدعم الفني ===== */
+function supMsg(text, color){
+  const el = document.getElementById('msgSup');
+  el.textContent = text;
+  el.style.color = color || 'var(--mut)';
+}
+
+async function loadTickets(){
+  const box = document.getElementById('supList');
+  if(SUPPORT_FN.startsWith('REPLACE')){ return; }
+  try{
+    const d = await pairCall(SUPPORT_FN, { action: 'list' });
+    if(!d.success){ box.innerHTML = '<div class="empty" style="padding:20px;">تعذر جلب التذاكر.</div>'; return; }
+    if(!d.tickets || d.tickets.length === 0){
+      box.innerHTML = '<div class="empty" style="padding:20px;">ما عندكش تذاكر سابقة.</div>';
+      return;
+    }
+    box.innerHTML = d.tickets.map(t => `
+      <div class="ticket">
+        <div class="ticket-top">
+          <span class="ticket-subject">${esc(t.subject)}</span>
+          <span class="st ${t.reply ? 'done' : ''}">${t.reply ? 'تم الرد' : 'قيد الانتظار'}</span>
+        </div>
+        <div class="ticket-meta">${esc(t.ticket_code)} · ${formatDate(t.created_at)}</div>
+        <div class="ticket-msg">${esc(t.message)}</div>
+        ${t.reply ? `<div class="ticket-reply">${esc(t.reply)}<div class="ticket-meta" style="margin:6px 0 0;">${formatDate(t.replied_at)}</div></div>` : ''}
+      </div>`).join('');
+  }catch(e){
+    box.innerHTML = '<div class="empty" style="padding:20px;">تعذر الاتصال بالسيرفر.</div>';
+  }
+}
+
+document.getElementById('btnSupSend').addEventListener('click', async ()=>{
+  const subject = document.getElementById('supSubject').value.trim();
+  const message = document.getElementById('supMessage').value.trim();
+  if(subject.length < 3 || message.length < 10){
+    supMsg('اكتب عنوانًا (3 أحرف) ورسالة (10 أحرف على الأقل).', 'var(--bad)');
+    return;
+  }
+  if(SUPPORT_FN.startsWith('REPLACE')){
+    supMsg('خدمة الدعم لم تُفعَّل بعد.', 'var(--bad)');
+    return;
+  }
+  const btn = document.getElementById('btnSupSend');
+  btn.disabled = true;
+  try{
+    const d = await pairCall(SUPPORT_FN, { action: 'create', subject, message });
+    if(d.success){
+      document.getElementById('supSubject').value = '';
+      document.getElementById('supMessage').value = '';
+      supMsg('وصلت رسالتك. رقم التذكرة: ' + (d.ticket_code || ''), 'var(--ok)');
+      loadTickets();
+    } else {
+      supMsg(d.error || 'تعذر الإرسال.', 'var(--bad)');
+    }
+  }catch(e){
+    supMsg('تعذر الاتصال بالسيرفر.', 'var(--bad)');
+  }finally{ btn.disabled = false; }
+});
+document.getElementById('btnSupRefresh').addEventListener('click', loadTickets);
+
+/* ===== صندوق الدعم للإدارة (يظهر للمالك فقط) ===== */
+let ADMIN_CHECKED = false, IS_ADMIN = false;
+async function loadAdmin(){
+  const box = document.getElementById('adminSupport');
+  if(SUPPORT_FN.startsWith('REPLACE')) return;
+  try{
+    if(!ADMIN_CHECKED){
+      const w = await pairCall(SUPPORT_FN, { action: 'whoami' });
+      IS_ADMIN = !!(w && w.success && w.is_admin);
+      ADMIN_CHECKED = true;
+    }
+    if(!IS_ADMIN){ box.innerHTML = ''; return; }
+    const d = await pairCall(SUPPORT_FN, { action: 'admin_list' });
+    if(!d.success){
+      box.innerHTML = '<div class="card"><div class="empty" style="padding:20px;">تعذر جلب صندوق الإدارة.</div></div>';
+      return;
+    }
+    const list = (d.tickets || []).slice().sort((a,b) => (a.reply ? 1 : 0) - (b.reply ? 1 : 0));
+    const open = list.filter(t => !t.reply).length;
+    box.innerHTML = `<div class="card">
+      <div class="card-title">صندوق الدعم (الإدارة)</div>
+      <div class="card-text">بدون رد: ${open} · الكل: ${list.length}</div>
+      ${list.length === 0 ? '<div class="empty" style="padding:20px;">ما كاين تذاكر.</div>' : list.map(t => `
+        <div class="ticket">
+          <div class="ticket-top">
+            <span class="ticket-subject">${esc(t.subject)}</span>
+            <span class="st ${t.reply ? 'done' : ''}">${t.reply ? 'تم الرد' : 'بدون رد'}</span>
+          </div>
+          <div class="ticket-meta">${esc(t.ticket_code)} · ${esc(t.email || 'غير معروف')} · ${formatDate(t.created_at)}</div>
+          <div class="ticket-msg">${esc(t.message)}</div>
+          ${t.reply ? `<div class="ticket-reply">${esc(t.reply)}<div class="ticket-meta" style="margin:6px 0 0;">${formatDate(t.replied_at)}</div></div>` : ''}
+          <textarea class="field" id="adm-reply-${esc(t.ticket_code)}" maxlength="2000" placeholder="${t.reply ? 'تعديل الرد' : 'اكتب الرد'}" style="margin-top:10px;min-height:80px;"></textarea>
+          <button class="btn adm-send" data-code="${esc(t.ticket_code)}">${t.reply ? 'تحديث الرد' : 'إرسال الرد'}</button>
+          <div class="msg" id="adm-msg-${esc(t.ticket_code)}"></div>
+        </div>`).join('')}
+    </div>`;
+  }catch(e){
+    box.innerHTML = '';
+  }
+}
+document.getElementById('adminSupport').addEventListener('click', async (ev)=>{
+  const btn = ev.target.closest('.adm-send');
+  if(!btn) return;
+  const code = btn.dataset.code;
+  const ta = document.getElementById('adm-reply-' + code);
+  const msg = document.getElementById('adm-msg-' + code);
+  const reply = ta.value.trim();
+  if(reply.length < 2){ msg.style.color = 'var(--bad)'; msg.textContent = 'اكتب الرد.'; return; }
+  btn.disabled = true;
+  try{
+    const d = await pairCall(SUPPORT_FN, { action: 'admin_reply', ticket_code: code, reply });
+    if(d.success){ loadAdmin(); }
+    else { msg.style.color = 'var(--bad)'; msg.textContent = d.error || 'تعذر الإرسال.'; }
+  }catch(e){
+    msg.style.color = 'var(--bad)'; msg.textContent = 'تعذر الاتصال بالسيرفر.';
+  }finally{ btn.disabled = false; }
+});
+
+/* ===== رموز الاسترجاع ===== */
+function recMsg(text, color){
+  const el = document.getElementById('msgRec');
+  el.textContent = text;
+  el.style.color = color || 'var(--mut)';
+}
+document.getElementById('btnRecGen').addEventListener('click', async ()=>{
+  const pw = document.getElementById('recPw').value;
+  if(!pw){ recMsg('اكتب كلمة السر الحالية.', 'var(--bad)'); return; }
+  if(!confirm('الرموز القديمة غير المستعملة ستُلغى. تكمل؟')) return;
+  const btn = document.getElementById('btnRecGen');
+  btn.disabled = true;
+  try{
+    const d = await pairCall(RECOVERY_GEN_FN, { current_password: pw });
+    if(d.success){
+      const box = document.getElementById('recCodes');
+      box.textContent = d.codes.join('\n');
+      box.style.display = 'block';
+      document.getElementById('btnRecCopy').style.display = 'block';
+      document.getElementById('recPw').value = '';
+      recMsg('احفظها الآن في مكان آمن، ما تظهر مرة أخرى.', 'var(--ok)');
+    } else {
+      recMsg(d.error || 'تعذر التوليد.', 'var(--bad)');
+    }
+  }catch(e){
+    recMsg('تعذر الاتصال بالسيرفر.', 'var(--bad)');
+  }finally{ btn.disabled = false; }
+});
+document.getElementById('btnRecCopy').addEventListener('click', async ()=>{
+  try{
+    await navigator.clipboard.writeText(document.getElementById('recCodes').textContent);
+    recMsg('تم النسخ.', 'var(--ok)');
+  }catch(e){
+    recMsg('تعذر النسخ، حددها يدويًا.', 'var(--bad)');
+  }
+});
+
+/* ===== تشغيل ===== */
+loadDashboard();
+setInterval(()=>{
+  if(document.hidden) return;
+  if(!document.getElementById('tab-home').classList.contains('active')) return;
+  if(document.querySelector('.pair-box[data-code="1"]')) return;
+  loadDashboard();
+}, 20000);
+</script>
+
+</body>
+</html>
