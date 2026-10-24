@@ -183,6 +183,24 @@
     <button id="btnRecCopy" class="btn ghost" style="display:none; margin-top:10px;">نسخ الرموز</button>
     <div id="msgRec" class="msg"></div>
   </div>
+  <div class="card" id="inviteCard" style="display:none;">
+    <div class="card-title">روابط الدعوة (الإدارة)</div>
+    <div class="card-text">كل رابط يصلح لمرة واحدة، ويفتح حسابًا جديدًا. يظهر الرابط مرة واحدة فقط بعد إنشائه.</div>
+    <input type="text" id="invNote" maxlength="80" placeholder="ملاحظة (اختياري، مثلاً اسم صاحب الحساب)" class="field">
+    <select id="invDays" class="field">
+      <option value="1">صلاحية يوم واحد</option>
+      <option value="2" selected>صلاحية يومين</option>
+      <option value="7">صلاحية 7 أيام</option>
+    </select>
+    <button id="btnInvCreate" class="btn">إنشاء رابط</button>
+    <div id="invResult" style="display:none; margin-top:12px; padding:12px; border:1px dashed var(--acc); border-radius:8px;">
+      <div id="invLink" style="direction:ltr; font-size:12px; word-break:break-all; user-select:all;"></div>
+      <button id="btnInvCopy" class="btn ghost" style="margin-top:10px;">نسخ الرابط</button>
+    </div>
+    <div id="msgInv" class="msg"></div>
+    <div class="card-title" style="margin-top:18px;">آخر الروابط</div>
+    <div id="invList"><div class="empty" style="padding:16px;">—</div></div>
+  </div>
   <div class="card">
     <button id="btnLogout" class="btn ghost">تسجيل الخروج</button>
   </div>
@@ -205,7 +223,7 @@ const RECOVERY_GEN_FN = "bright-service";
 const PERSON_ADD_FN = "bright-task";
 const SUPPORT_FN = "rapid-worker";
 const SIGNUP_FN = "hyper-endpoint";
-  
+
 const sessionToken = sessionStorage.getItem('saveme_session_token');
 if(!sessionToken){ window.location.href = "saveme-portal.html"; }
 
@@ -246,6 +264,7 @@ function showTab(name){
   window.scrollTo(0, 0);
   if(name === 'support'){ loadTickets(); loadAdmin(); }
   if(name === 'profile') loadProfile();
+  if(name === 'settings') loadInviteCard();
 }
 document.querySelectorAll('.nav button').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
 
@@ -464,16 +483,22 @@ document.getElementById('btnSupRefresh').addEventListener('click', loadTickets);
 
 /* ===== صندوق الدعم للإدارة (يظهر للمالك فقط) ===== */
 let ADMIN_CHECKED = false, IS_ADMIN = false;
+async function checkAdmin(){
+  if(SUPPORT_FN.startsWith('REPLACE')) return false;
+  if(!ADMIN_CHECKED){
+    try{
+      const w = await pairCall(SUPPORT_FN, { action: 'whoami' });
+      IS_ADMIN = !!(w && w.success && w.is_admin);
+      ADMIN_CHECKED = true;
+    }catch(e){ return false; }
+  }
+  return IS_ADMIN;
+}
 async function loadAdmin(){
   const box = document.getElementById('adminSupport');
   if(SUPPORT_FN.startsWith('REPLACE')) return;
   try{
-    if(!ADMIN_CHECKED){
-      const w = await pairCall(SUPPORT_FN, { action: 'whoami' });
-      IS_ADMIN = !!(w && w.success && w.is_admin);
-      ADMIN_CHECKED = true;
-    }
-    if(!IS_ADMIN){ box.innerHTML = ''; return; }
+    if(!(await checkAdmin())){ box.innerHTML = ''; return; }
     const d = await pairCall(SUPPORT_FN, { action: 'admin_list' });
     if(!d.success){
       box.innerHTML = '<div class="card"><div class="empty" style="padding:20px;">تعذر جلب صندوق الإدارة.</div></div>';
@@ -558,6 +583,84 @@ document.getElementById('btnProfSave').addEventListener('click', async ()=>{
   }catch(e){
     msg.style.color = 'var(--bad)'; msg.textContent = 'تعذر الاتصال بالسيرفر.';
   }finally{ btn.disabled = false; }
+});
+
+/* ===== روابط الدعوة (للإدارة) ===== */
+function invStatus(i){
+  if(i.used_at) return 'مستعمل';
+  if(i.revoked_at) return 'ملغى';
+  if(new Date(i.expires_at) < new Date()) return 'منتهي';
+  return 'فعال';
+}
+function invMsg(text, color){
+  const el = document.getElementById('msgInv');
+  el.textContent = text;
+  el.style.color = color || 'var(--mut)';
+}
+async function loadInviteCard(){
+  if(SIGNUP_FN.startsWith('REPLACE')) return;
+  if(!(await checkAdmin())) return;
+  document.getElementById('inviteCard').style.display = 'block';
+  try{
+    const d = await pairCall(SIGNUP_FN, { action: 'invite_list' });
+    const box = document.getElementById('invList');
+    if(!d.success){ box.innerHTML = '<div class="empty" style="padding:16px;">تعذر جلب الروابط.</div>'; return; }
+    if(!d.invites || d.invites.length === 0){ box.innerHTML = '<div class="empty" style="padding:16px;">ما كاين روابط.</div>'; return; }
+    box.innerHTML = d.invites.map(i => {
+      const st = invStatus(i);
+      return `<div class="ticket">
+        <div class="ticket-top">
+          <span class="ticket-subject">${esc(i.note || 'بدون ملاحظة')}</span>
+          <span class="st ${st === 'فعال' ? 'done' : ''}">${st}</span>
+        </div>
+        <div class="ticket-meta">${formatDate(i.created_at)} · ينتهي ${formatDate(i.expires_at)}</div>
+        ${st === 'فعال' ? `<button class="btn ghost inv-revoke" data-id="${esc(i.id)}">إلغاء الرابط</button>` : ''}
+      </div>`;
+    }).join('');
+  }catch(e){
+    document.getElementById('invList').innerHTML = '<div class="empty" style="padding:16px;">تعذر الاتصال بالسيرفر.</div>';
+  }
+}
+document.getElementById('btnInvCreate').addEventListener('click', async ()=>{
+  const btn = document.getElementById('btnInvCreate');
+  btn.disabled = true;
+  try{
+    const d = await pairCall(SIGNUP_FN, {
+      action: 'invite_create',
+      note: document.getElementById('invNote').value.trim(),
+      days: Number(document.getElementById('invDays').value)
+    });
+    if(d.success){
+      const link = new URL('saveme-signup.html', location.href).href + '#' + d.token;
+      document.getElementById('invLink').textContent = link;
+      document.getElementById('invResult').style.display = 'block';
+      document.getElementById('invNote').value = '';
+      invMsg('انسخ الرابط الآن، ما يظهر مرة أخرى.', 'var(--ok)');
+      loadInviteCard();
+    } else {
+      invMsg(d.error || 'تعذر إنشاء الرابط.', 'var(--bad)');
+    }
+  }catch(e){
+    invMsg('تعذر الاتصال بالسيرفر.', 'var(--bad)');
+  }finally{ btn.disabled = false; }
+});
+document.getElementById('btnInvCopy').addEventListener('click', async ()=>{
+  try{
+    await navigator.clipboard.writeText(document.getElementById('invLink').textContent);
+    invMsg('تم النسخ.', 'var(--ok)');
+  }catch(e){
+    invMsg('تعذر النسخ، حدد الرابط يدويًا.', 'var(--bad)');
+  }
+});
+document.getElementById('invList').addEventListener('click', async (ev)=>{
+  const b = ev.target.closest('.inv-revoke');
+  if(!b) return;
+  if(!confirm('إلغاء هذا الرابط؟')) return;
+  b.disabled = true;
+  try{
+    const d = await pairCall(SIGNUP_FN, { action: 'invite_revoke', id: b.dataset.id });
+    if(d.success) loadInviteCard(); else { invMsg(d.error || 'تعذر الإلغاء.', 'var(--bad)'); b.disabled = false; }
+  }catch(e){ invMsg('تعذر الاتصال بالسيرفر.', 'var(--bad)'); b.disabled = false; }
 });
 
 /* ===== رموز الاسترجاع ===== */
