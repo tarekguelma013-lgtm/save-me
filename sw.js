@@ -1,5 +1,5 @@
 // SAVE ME service worker: يخزّن واجهة الصفحات فقط. لا يلمس أي طلب لـ Supabase.
-const CACHE = 'saveme-v1';
+const CACHE = 'saveme-v2';
 const SHELL = [
   'saveme-portal.html', 'saveme-dashboard.html', 'saveme-device.html', 'saveme-signup.html',
   'saveme-logo.png', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png',
