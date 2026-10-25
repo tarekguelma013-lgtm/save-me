@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SAVE ME - لوحة المتابعة</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#000000">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="SAVE ME">
 <script>
   document.documentElement.dataset.theme = localStorage.getItem('saveme_theme') || 'dark';
 </script>
@@ -107,6 +113,14 @@
 </head>
 <body>
 
+<div id="lockScreen" style="display:none; position:fixed; inset:0; z-index:100; background:var(--bg); flex-direction:column; align-items:center; justify-content:center; padding:24px; text-align:center;">
+  <img src="saveme-logo.png" alt="SAVE ME" style="height:90px; width:auto; margin-bottom:24px;">
+  <div style="font-size:16px; margin-bottom:14px;">أدخل رمز القفل</div>
+  <input type="password" id="lockPin" inputmode="numeric" maxlength="6" autocomplete="off" class="field" style="max-width:240px; text-align:center; letter-spacing:6px; font-size:22px; direction:ltr;">
+  <button id="btnUnlock" class="btn" style="max-width:240px;">فتح</button>
+  <div id="lockMsg" class="msg" style="color:var(--bad);"></div>
+</div>
+
 <div class="header">
   <img src="saveme-logo.png" alt="SAVE ME">
 </div>
@@ -183,6 +197,26 @@
     <button id="btnRecCopy" class="btn ghost" style="display:none; margin-top:10px;">نسخ الرموز</button>
     <div id="msgRec" class="msg"></div>
   </div>
+  <div class="card" id="installCard">
+    <div class="card-title">تثبيت التطبيق</div>
+    <div class="card-text" id="installText">ثبّت SAVE ME على شاشتك الرئيسية ليفتح كتطبيق ويبقى دخولك محفوظًا. من قائمة المتصفح اختر "تثبيت التطبيق".</div>
+    <button id="btnInstall" class="btn" style="display:none;">تثبيت</button>
+    <div id="iosTip" class="card-text" style="display:none;">على iPhone: اضغط زر المشاركة ثم "إضافة إلى الشاشة الرئيسية".</div>
+  </div>
+  <div class="card" id="pinCard">
+    <div class="card-title">قفل التطبيق</div>
+    <div class="card-text">رمز من 4 إلى 6 أرقام يُطلب عند فتح التطبيق وبعد دقيقة من تركه. بعد 5 محاولات خاطئة يُسجَّل خروجك ويلزم الدخول بكلمة السر.</div>
+    <div id="pinSetBox">
+      <input type="password" id="pinNew" inputmode="numeric" maxlength="6" placeholder="الرمز الجديد" class="field" style="direction:ltr;">
+      <input type="password" id="pinNew2" inputmode="numeric" maxlength="6" placeholder="أعد كتابة الرمز" class="field" style="direction:ltr;">
+      <button id="btnPinSet" class="btn">تفعيل القفل</button>
+    </div>
+    <div id="pinOffBox" style="display:none;">
+      <div class="card-text" style="color:var(--ok);">القفل مفعّل.</div>
+      <button id="btnPinOff" class="btn ghost">إلغاء القفل</button>
+    </div>
+    <div id="msgPin" class="msg"></div>
+  </div>
   <div class="card" id="inviteCard" style="display:none;">
     <div class="card-title">روابط الدعوة (الإدارة)</div>
     <div class="card-text">كل رابط يصلح لمرة واحدة، ويفتح حسابًا جديدًا. يظهر الرابط مرة واحدة فقط بعد إنشائه.</div>
@@ -224,8 +258,30 @@ const PERSON_ADD_FN = "bright-task";
 const SUPPORT_FN = "rapid-worker";
 const SIGNUP_FN = "hyper-endpoint";
 
-const sessionToken = sessionStorage.getItem('saveme_session_token');
-if(!sessionToken){ window.location.href = "saveme-portal.html"; }
+function tokenExp(t){
+  try{ return JSON.parse(atob(String(t).split('.')[0])).exp || 0; }catch(e){ return 0; }
+}
+function clearSession(){
+  sessionStorage.removeItem('saveme_session_token');
+  sessionStorage.removeItem('saveme_user_id');
+  localStorage.removeItem('saveme_session_persist');
+  localStorage.removeItem('saveme_pin');
+  localStorage.removeItem('saveme_pin_fails');
+}
+let sessionToken = sessionStorage.getItem('saveme_session_token');
+if(!sessionToken){
+  const saved = localStorage.getItem('saveme_session_persist');
+  if(saved && tokenExp(saved) > Date.now()){
+    sessionToken = saved;
+    sessionStorage.setItem('saveme_session_token', saved);
+  }
+}
+if(sessionToken && tokenExp(sessionToken) > Date.now()){
+  localStorage.setItem('saveme_session_persist', sessionToken);
+} else {
+  sessionToken = null;
+}
+if(!sessionToken){ clearSession(); window.location.href = "saveme-portal.html"; }
 
 function fnUrl(name){ return `${SUPABASE_URL}/functions/v1/${name}`; }
 function headers(){
@@ -264,7 +320,7 @@ async function pairCall(fn, payload){
     body: JSON.stringify({ session_token: sessionToken, ...payload })
   });
   if(res.status === 401){
-    sessionStorage.removeItem('saveme_session_token');
+    clearSession();
     window.location.href = "saveme-portal.html";
   }
   return res.json();
@@ -295,7 +351,7 @@ document.getElementById('btnTheme').addEventListener('click', () => {
 applyThemeLabel();
 
 document.getElementById('btnLogout').addEventListener('click', () => {
-  sessionStorage.removeItem('saveme_session_token');
+  clearSession();
   sessionStorage.removeItem('saveme_user_id');
   window.location.href = 'saveme-portal.html';
 });
@@ -310,7 +366,7 @@ async function loadDashboard(){
     });
     const data = await res.json();
     if(res.status === 401){
-      sessionStorage.removeItem('saveme_session_token');
+      clearSession();
       window.location.href = "saveme-portal.html";
       return;
     }
@@ -712,6 +768,114 @@ document.getElementById('btnRecCopy').addEventListener('click', async ()=>{
     recMsg('تعذر النسخ، حددها يدويًا.', 'var(--bad)');
   }
 });
+
+/* ===== قفل التطبيق (PIN) + تثبيت التطبيق ===== */
+const PIN_KEY = 'saveme_pin', PIN_FAIL_KEY = 'saveme_pin_fails', LOCK_AFTER_MS = 60000;
+let hiddenAt = 0;
+function b2h(buf){ return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join(''); }
+async function pinHash(pin, saltHex){
+  const salt = Uint8Array.from(saltHex.match(/../g).map(h => parseInt(h, 16)));
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(pin), 'PBKDF2', false, ['deriveBits']);
+  return b2h(await crypto.subtle.deriveBits({ name:'PBKDF2', salt, iterations:100000, hash:'SHA-256' }, key, 256));
+}
+function getPin(){
+  try{ return JSON.parse(localStorage.getItem(PIN_KEY) || 'null'); }catch(e){ return null; }
+}
+function showLock(){
+  if(!getPin()) return;
+  document.getElementById('lockScreen').style.display = 'flex';
+  document.getElementById('lockPin').value = '';
+  document.getElementById('lockMsg').textContent = '';
+  setTimeout(() => document.getElementById('lockPin').focus(), 50);
+}
+function hideLock(){ document.getElementById('lockScreen').style.display = 'none'; }
+async function tryUnlock(){
+  const p = getPin();
+  if(!p){ hideLock(); return; }
+  const pin = document.getElementById('lockPin').value;
+  const msg = document.getElementById('lockMsg');
+  if(!/^\d{4,6}$/.test(pin)){ msg.textContent = 'الرمز 4 إلى 6 أرقام.'; return; }
+  if(await pinHash(pin, p.salt) === p.hash){
+    localStorage.removeItem(PIN_FAIL_KEY);
+    hideLock();
+    return;
+  }
+  const fails = (Number(localStorage.getItem(PIN_FAIL_KEY)) || 0) + 1;
+  localStorage.setItem(PIN_FAIL_KEY, String(fails));
+  if(fails >= 5){ clearSession(); window.location.href = 'saveme-portal.html'; return; }
+  msg.textContent = `رمز خاطئ. بقي ${5 - fails} محاولات قبل تسجيل الخروج.`;
+  document.getElementById('lockPin').value = '';
+}
+document.getElementById('btnUnlock').addEventListener('click', tryUnlock);
+document.getElementById('lockPin').addEventListener('keydown', (e) => { if(e.key === 'Enter') tryUnlock(); });
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'hidden'){ hiddenAt = Date.now(); }
+  else if(hiddenAt && Date.now() - hiddenAt > LOCK_AFTER_MS){ showLock(); }
+});
+
+function pinCardRefresh(){
+  const set = !!getPin();
+  document.getElementById('pinSetBox').style.display = set ? 'none' : 'block';
+  document.getElementById('pinOffBox').style.display = set ? 'block' : 'none';
+}
+function pinMsg(text, color){
+  const el = document.getElementById('msgPin');
+  el.textContent = text;
+  el.style.color = color || 'var(--mut)';
+}
+document.getElementById('btnPinSet').addEventListener('click', async () => {
+  const a = document.getElementById('pinNew').value;
+  const b = document.getElementById('pinNew2').value;
+  if(!/^\d{4,6}$/.test(a)){ pinMsg('الرمز 4 إلى 6 أرقام.', 'var(--bad)'); return; }
+  if(a !== b){ pinMsg('الرمزان غير متطابقين.', 'var(--bad)'); return; }
+  const salt = b2h(crypto.getRandomValues(new Uint8Array(16)));
+  localStorage.setItem(PIN_KEY, JSON.stringify({ salt, hash: await pinHash(a, salt) }));
+  localStorage.removeItem(PIN_FAIL_KEY);
+  document.getElementById('pinNew').value = '';
+  document.getElementById('pinNew2').value = '';
+  pinCardRefresh();
+  pinMsg('تم تفعيل القفل.', 'var(--ok)');
+});
+document.getElementById('btnPinOff').addEventListener('click', async () => {
+  const p = getPin();
+  if(!p) return;
+  const cur = prompt('أدخل الرمز الحالي لإلغاء القفل');
+  if(cur === null) return;
+  if(/^\d{4,6}$/.test(cur) && await pinHash(cur, p.salt) === p.hash){
+    localStorage.removeItem(PIN_KEY);
+    localStorage.removeItem(PIN_FAIL_KEY);
+    pinCardRefresh();
+    pinMsg('تم إلغاء القفل.', 'var(--ok)');
+  } else {
+    pinMsg('الرمز غير صحيح.', 'var(--bad)');
+  }
+});
+pinCardRefresh();
+
+let deferredInstall = null;
+const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+if(isStandalone){ document.getElementById('installCard').style.display = 'none'; }
+if(/iphone|ipad|ipod/i.test(navigator.userAgent) && !isStandalone){
+  document.getElementById('iosTip').style.display = 'block';
+}
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstall = e;
+  document.getElementById('btnInstall').style.display = 'block';
+});
+document.getElementById('btnInstall').addEventListener('click', async () => {
+  if(!deferredInstall) return;
+  deferredInstall.prompt();
+  await deferredInstall.userChoice;
+  deferredInstall = null;
+  document.getElementById('btnInstall').style.display = 'none';
+});
+window.addEventListener('appinstalled', () => { document.getElementById('installCard').style.display = 'none'; });
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
+}
+showLock();
 
 /* ===== تشغيل ===== */
 loadDashboard();
